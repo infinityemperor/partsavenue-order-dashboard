@@ -1,0 +1,432 @@
+<!doctype html>
+<html lang="ru">
+<head>
+  <meta charset="utf-8">
+  <title>ПартсАвеню — Дашборд (демо)</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
+  <style>
+    :root {
+      /* Брендовая палитра ПартсАвеню (основа: #03002e) */
+      --bg: #03002e;
+      --bg-card: #0c0a3f;
+      --bg-card-hover: #161353;
+      --border: #2a2480;
+      --border-soft: #1a1660;
+      --text: #f0eeff;
+      --text-dim: #a8a5d4;
+      --text-faint: #6864a0;
+      --accent: #6366f1;       /* индиго — действия */
+      --accent-hover: #818cf8;
+      --green: #34d399;        /* сток (наш) */
+      --orange: #fbbf24;       /* кросс (через поставщиков) */
+      --red: #f87171;
+    }
+    *,*::before,*::after { box-sizing: border-box; }
+    html, body { background: var(--bg); }
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+      color: var(--text); margin: 0; padding: 0;
+      font-feature-settings: "tnum" 1;
+      min-height: 100vh;
+    }
+
+    .demo-banner {
+      background: linear-gradient(90deg, var(--orange), var(--red));
+      color: white; text-align: center; padding: 8px;
+      font-size: 13px; font-weight: 600;
+    }
+
+    /* ====== HEADER ====== */
+    .header {
+      padding: 18px 24px; border-bottom: 1px solid var(--border-soft);
+      display: flex; align-items: center; gap: 18px; background: var(--bg-card);
+      flex-wrap: wrap;
+    }
+    .header .brand { font-size: 18px; font-weight: 700; white-space: nowrap; }
+    .header .brand .accent { color: var(--accent); }
+    .header .nav { flex: 1; display: flex; gap: 6px; flex-wrap: wrap; }
+    .header .nav button {
+      background: transparent; border: 1px solid var(--border);
+      color: var(--text-dim); padding: 7px 12px; border-radius: 8px;
+      cursor: pointer; font-size: 12.5px; white-space: nowrap;
+    }
+    .header .nav button:hover { background: var(--bg-card-hover); color: var(--text); }
+    .header .nav button.active {
+      background: var(--accent); color: white; border-color: var(--accent);
+    }
+    .header .right { display: flex; align-items: center; gap: 10px; }
+    .header .ts { color: var(--text-faint); font-size: 12px; }
+    .header .lock-btn {
+      background: transparent; border: 1px solid var(--border);
+      color: var(--text-dim); padding: 6px 10px; border-radius: 8px;
+      cursor: pointer; font-size: 12px;
+    }
+    .header .lock-btn:hover { color: var(--red); border-color: var(--red); }
+
+    /* ====== MAIN ====== */
+    main { padding: 24px; max-width: 1400px; margin: 0 auto; }
+    @media (max-width: 640px) {
+      main { padding: 16px; }
+      .header { padding: 14px 16px; gap: 12px; }
+      .header .brand { font-size: 16px; }
+    }
+
+    /* Toolbar */
+    .toolbar {
+      display: flex; align-items: center; gap: 10px; margin-bottom: 24px;
+      flex-wrap: wrap;
+    }
+    .toolbar input[type="date"] {
+      background: var(--bg-card); border: 1px solid var(--border);
+      color: var(--text); padding: 7px 12px; border-radius: 8px;
+      font-size: 13px; color-scheme: dark;
+    }
+    .toolbar .chip {
+      background: var(--bg-card); border: 1px solid var(--border);
+      color: var(--text-dim); padding: 7px 13px; border-radius: 8px;
+      cursor: pointer; font-size: 13px;
+    }
+    .toolbar .chip:hover { color: var(--text); border-color: var(--accent); }
+    .toolbar .chip.active { background: var(--accent); color: white; border-color: var(--accent); }
+    .toolbar .sep { flex: 1; min-width: 12px; }
+    .toolbar .refresh {
+      background: transparent; border: 1px solid var(--border);
+      color: var(--text-dim); padding: 7px 13px; border-radius: 8px;
+      cursor: pointer; font-size: 13px;
+    }
+    .toolbar .refresh:hover { color: var(--text); border-color: var(--accent); }
+
+    /* KPI Tiles */
+    .kpi-grid {
+      display: grid; grid-template-columns: repeat(3, 1fr); gap: 16px;
+      margin-bottom: 24px;
+    }
+    @media (max-width: 720px) {
+      .kpi-grid { grid-template-columns: 1fr; gap: 12px; }
+    }
+    .kpi {
+      background: var(--bg-card); border: 1px solid var(--border-soft);
+      border-radius: 14px; padding: 22px; position: relative;
+      overflow: hidden;
+    }
+    .kpi::before {
+      content: ""; position: absolute; top: 0; left: 0; right: 0; height: 3px;
+    }
+    .kpi.total::before { background: var(--accent); }
+    .kpi.stock::before { background: var(--green); }
+    .kpi.cross::before { background: var(--orange); }
+    .kpi .lbl { color: var(--text-dim); font-size: 13px; margin-bottom: 8px; }
+    .kpi .val {
+      font-size: 32px; font-weight: 700; line-height: 1.1; letter-spacing: -0.02em;
+    }
+    @media (max-width: 720px) {
+      .kpi .val { font-size: 26px; }
+    }
+    .kpi.total .val { color: var(--text); }
+    .kpi.stock .val { color: var(--green); }
+    .kpi.cross .val { color: var(--orange); }
+    .kpi .sub { color: var(--text-faint); font-size: 12px; margin-top: 8px; }
+
+    /* Section card */
+    .section {
+      background: var(--bg-card); border: 1px solid var(--border-soft);
+      border-radius: 14px; padding: 22px; margin-bottom: 16px;
+    }
+    @media (max-width: 640px) { .section { padding: 16px; } }
+    .section h2 {
+      margin: 0 0 16px; font-size: 16px; font-weight: 600; color: var(--text);
+    }
+
+    /* Table */
+    .table-wrap { overflow-x: auto; margin: -8px; padding: 8px; }
+    table { width: 100%; border-collapse: collapse; font-size: 13px; min-width: 600px; }
+    table th {
+      text-align: left; color: var(--text-dim); font-weight: 500;
+      padding: 10px 8px; border-bottom: 1px solid var(--border-soft);
+      font-size: 12px; text-transform: uppercase; letter-spacing: 0.04em;
+      white-space: nowrap;
+    }
+    table th.num, table td.num { text-align: right; }
+    table td { padding: 12px 8px; border-bottom: 1px solid var(--border-soft); }
+    table tr:last-child td { border-bottom: none; }
+    table tr:hover td { background: var(--bg-card-hover); }
+
+    /* Pills */
+    .pill {
+      display: inline-block; padding: 2px 8px; border-radius: 6px;
+      font-size: 11px; font-weight: 500; margin-left: 6px;
+    }
+    .pill.green { background: rgba(52,211,153,.15); color: var(--green); }
+    .pill.orange { background: rgba(251,191,36,.15); color: var(--orange); }
+
+    /* Chart container */
+    .chart-wrap { position: relative; height: 280px; }
+    @media (max-width: 640px) { .chart-wrap { height: 240px; } }
+
+    /* Sessions list */
+    .session-row {
+      display: flex; align-items: center; gap: 16px; padding: 12px 8px;
+      border-bottom: 1px solid var(--border-soft);
+    }
+    @media (max-width: 640px) {
+      .session-row { flex-wrap: wrap; gap: 10px; }
+      .session-row .sum { width: 100%; padding-left: 38px; }
+    }
+    .session-row:last-child { border-bottom: none; }
+    .session-row .check {
+      width: 22px; height: 22px; border-radius: 6px; border: 1px solid var(--border);
+      cursor: pointer; display: flex; align-items: center; justify-content: center;
+      flex-shrink: 0; transition: transform .1s;
+    }
+    .session-row .check:hover { transform: scale(1.1); }
+    .session-row.included .check {
+      background: var(--green); border-color: var(--green); color: var(--bg);
+      font-weight: 700;
+    }
+    .session-row.excluded .check { background: var(--bg); }
+    .session-row.excluded .info, .session-row.excluded .sum {
+      color: var(--text-faint); text-decoration: line-through;
+    }
+    .session-row .info { flex: 1; min-width: 0; }
+    .session-row .info .when { font-size: 14px; color: var(--text); }
+    .session-row .info .who { font-size: 12px; color: var(--text-faint); margin-top: 2px; }
+    .session-row .sum { font-size: 14px; font-weight: 600; white-space: nowrap; }
+
+    /* Two columns layout */
+    .two-cols {
+      display: grid; grid-template-columns: 1.4fr 1fr; gap: 16px; margin-bottom: 16px;
+    }
+    @media (max-width: 1024px) { .two-cols { grid-template-columns: 1fr; } }
+  </style>
+</head>
+<body>
+  <div class="demo-banner">⚠️ ДЕМО — данные ниже выдуманы. Цвета настроены под бренд (#03002e).</div>
+
+  <header class="header">
+    <div class="brand">📊 <span class="accent">ПартсАвеню</span> · дашборд</div>
+    <div class="nav">
+      <button class="active">Июнь 2026</button>
+      <button>Май 2026</button>
+      <button>Апрель 2026</button>
+      <button>Март 2026</button>
+    </div>
+    <div class="right">
+      <span class="ts">Обновлено 14:32</span>
+      <button class="lock-btn">🔒 Заблокировать</button>
+    </div>
+  </header>
+
+  <main>
+    <div class="toolbar">
+      <button class="chip">Сегодня</button>
+      <button class="chip">Вчера</button>
+      <button class="chip">Неделя</button>
+      <button class="chip active">Месяц</button>
+      <input type="date">
+      <div class="sep"></div>
+      <button class="refresh">🔄 Обновить</button>
+    </div>
+
+    <div class="kpi-grid">
+      <div class="kpi total">
+        <div class="lbl">Общий товарооборот</div>
+        <div class="val">₽14 258 400</div>
+        <div class="sub">87 заказов · 412 позиций</div>
+      </div>
+      <div class="kpi stock">
+        <div class="lbl">Сток (наш собственный)</div>
+        <div class="val">₽4 320 600</div>
+        <div class="sub">30.3% от общего</div>
+      </div>
+      <div class="kpi cross">
+        <div class="lbl">Кросс (через поставщиков)</div>
+        <div class="val">₽9 937 800</div>
+        <div class="sub">69.7% от общего</div>
+      </div>
+    </div>
+
+    <div class="two-cols">
+      <div class="section">
+        <h2>Динамика по дням</h2>
+        <div class="chart-wrap"><canvas id="trendChart"></canvas></div>
+      </div>
+      <div class="section">
+        <h2>Распределение</h2>
+        <div class="chart-wrap"><canvas id="splitChart"></canvas></div>
+      </div>
+    </div>
+
+    <div class="section">
+      <h2>По клиентам</h2>
+      <div class="table-wrap">
+      <table>
+        <thead>
+          <tr>
+            <th>Клиент</th>
+            <th class="num">Заказов</th>
+            <th class="num">Поз.</th>
+            <th class="num">Общий ТО</th>
+            <th class="num">Сток</th>
+            <th class="num">Кросс</th>
+            <th class="num">Доля</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr><td>АМТЕЛ Москва</td><td class="num">24</td><td class="num">118</td><td class="num"><b>₽4 820 300</b></td><td class="num">₽1 240 100</td><td class="num">₽3 580 200</td><td class="num">33.8%</td></tr>
+          <tr><td>Автоскай Импорт</td><td class="num">18</td><td class="num">87</td><td class="num"><b>₽3 245 800</b></td><td class="num">₽960 400</td><td class="num">₽2 285 400</td><td class="num">22.8%</td></tr>
+          <tr><td>Партсавеню МСК</td><td class="num">15</td><td class="num">71</td><td class="num"><b>₽2 187 900</b></td><td class="num">₽820 300</td><td class="num">₽1 367 600</td><td class="num">15.3%</td></tr>
+          <tr><td>Авто-Транзит</td><td class="num">11</td><td class="num">54</td><td class="num"><b>₽1 654 200</b></td><td class="num">₽540 000</td><td class="num">₽1 114 200</td><td class="num">11.6%</td></tr>
+          <tr><td>Моторлайн</td><td class="num">8</td><td class="num">42</td><td class="num"><b>₽1 145 700</b></td><td class="num">₽380 200</td><td class="num">₽765 500</td><td class="num">8.0%</td></tr>
+          <tr><td>Profit League</td><td class="num">6</td><td class="num">28</td><td class="num"><b>₽742 100</b></td><td class="num">₽220 800</td><td class="num">₽521 300</td><td class="num">5.2%</td></tr>
+          <tr><td>Горизонт-плюс</td><td class="num">5</td><td class="num">12</td><td class="num"><b>₽462 400</b></td><td class="num">₽158 800</td><td class="num">₽303 600</td><td class="num">3.2%</td></tr>
+        </tbody>
+      </table>
+      </div>
+    </div>
+
+    <div class="section">
+      <h2>Сессии за период</h2>
+      <div>
+        <div class="session-row included">
+          <div class="check">✓</div>
+          <div class="info">
+            <div class="when">23.06 14:32 · 4 заказов · 23 поз.</div>
+            <div class="who">zinov@DESKTOP-IST</div>
+          </div>
+          <div class="sum">₽1 245 800
+            <span class="pill green">сток ₽220k</span>
+            <span class="pill orange">кросс ₽1.0M</span>
+          </div>
+        </div>
+        <div class="session-row included">
+          <div class="check">✓</div>
+          <div class="info">
+            <div class="when">23.06 11:05 · 2 заказов · 18 поз.</div>
+            <div class="who">istom@DESKTOP-PA02</div>
+          </div>
+          <div class="sum">₽845 200
+            <span class="pill green">сток ₽340k</span>
+            <span class="pill orange">кросс ₽505k</span>
+          </div>
+        </div>
+        <div class="session-row included">
+          <div class="check">✓</div>
+          <div class="info">
+            <div class="when">22.06 16:48 · 6 заказов · 41 поз.</div>
+            <div class="who">istom@DESKTOP-PA02</div>
+          </div>
+          <div class="sum">₽2 480 100
+            <span class="pill green">сток ₽680k</span>
+            <span class="pill orange">кросс ₽1.8M</span>
+          </div>
+        </div>
+        <div class="session-row excluded">
+          <div class="check"></div>
+          <div class="info">
+            <div class="when">22.06 12:15 · 1 заказов · 1 поз.</div>
+            <div class="who">zinov@DESKTOP-IST</div>
+          </div>
+          <div class="sum">₽4 800
+            <span class="pill green">сток ₽4k</span>
+            <span class="pill orange">кросс ₽0</span>
+          </div>
+        </div>
+        <div class="session-row included">
+          <div class="check">✓</div>
+          <div class="info">
+            <div class="when">21.06 17:30 · 5 заказов · 33 поз.</div>
+            <div class="who">istom@DESKTOP-PA02</div>
+          </div>
+          <div class="sum">₽1 670 500
+            <span class="pill green">сток ₽520k</span>
+            <span class="pill orange">кросс ₽1.1M</span>
+          </div>
+        </div>
+        <div class="session-row included">
+          <div class="check">✓</div>
+          <div class="info">
+            <div class="when">21.06 10:14 · 3 заказов · 19 поз.</div>
+            <div class="who">zinov@DESKTOP-IST</div>
+          </div>
+          <div class="sum">₽920 400
+            <span class="pill green">сток ₽280k</span>
+            <span class="pill orange">кросс ₽640k</span>
+          </div>
+        </div>
+      </div>
+    </div>
+  </main>
+
+  <script>
+    const formatRubFull = n => "₽" + Math.round(n).toLocaleString("ru-RU").replace(/,/g, " ");
+    const formatRub = n => {
+      if (n >= 1e6) return `₽${(n/1e6).toFixed(2)}M`;
+      if (n >= 1e3) return `₽${(n/1e3).toFixed(0)}k`;
+      return `₽${Math.round(n)}`;
+    };
+
+    // Тренд за июнь
+    const trendLabels = ["01.06","03.06","05.06","07.06","09.06","11.06","13.06","15.06","17.06","19.06","21.06","22.06","23.06"];
+    const trendTotal = [320000, 580000, 420000, 890000, 1240000, 760000, 980000, 1180000, 920000, 1450000, 2590900, 2484900, 2091000];
+    const trendStock = [120000, 180000, 140000, 280000, 380000, 240000, 320000, 380000, 280000, 480000, 800000, 684000, 560000];
+    const trendCross = trendTotal.map((v, i) => v - trendStock[i]);
+
+    new Chart(document.getElementById("trendChart"), {
+      type: "line",
+      data: {
+        labels: trendLabels,
+        datasets: [
+          { label: "Общий", data: trendTotal, borderColor: "#6366f1",
+            backgroundColor: "rgba(99,102,241,.18)", tension: 0.35, fill: true, borderWidth: 2, pointBackgroundColor: "#6366f1", pointRadius: 3 },
+          { label: "Сток", data: trendStock, borderColor: "#34d399",
+            backgroundColor: "rgba(52,211,153,0)", tension: 0.35, borderWidth: 2, pointBackgroundColor: "#34d399", pointRadius: 3 },
+          { label: "Кросс", data: trendCross, borderColor: "#fbbf24",
+            backgroundColor: "rgba(251,191,36,0)", tension: 0.35, borderWidth: 2, pointBackgroundColor: "#fbbf24", pointRadius: 3 }
+        ]
+      },
+      options: {
+        responsive: true, maintainAspectRatio: false,
+        plugins: {
+          legend: { labels: { color: "#a8a5d4", font: { size: 12 } } },
+          tooltip: {
+            backgroundColor: "#0c0a3f", titleColor: "#f0eeff", bodyColor: "#a8a5d4",
+            borderColor: "#2a2480", borderWidth: 1,
+            callbacks: { label: ctx => ` ${ctx.dataset.label}: ${formatRubFull(ctx.parsed.y)}` }
+          }
+        },
+        scales: {
+          x: { ticks: { color: "#6864a0", font: { size: 11 } }, grid: { color: "#1a1660" } },
+          y: {
+            ticks: { color: "#6864a0", font: { size: 11 }, callback: v => formatRub(v) },
+            grid: { color: "#1a1660" }
+          }
+        }
+      }
+    });
+
+    new Chart(document.getElementById("splitChart"), {
+      type: "doughnut",
+      data: {
+        labels: ["Сток", "Кросс"],
+        datasets: [{
+          data: [4320600, 9937800],
+          backgroundColor: ["#34d399", "#fbbf24"],
+          borderColor: "#0c0a3f", borderWidth: 3
+        }]
+      },
+      options: {
+        responsive: true, maintainAspectRatio: false,
+        plugins: {
+          legend: { labels: { color: "#a8a5d4", font: { size: 12 } } },
+          tooltip: {
+            backgroundColor: "#0c0a3f", titleColor: "#f0eeff", bodyColor: "#a8a5d4",
+            borderColor: "#2a2480", borderWidth: 1,
+            callbacks: { label: ctx => ` ${ctx.label}: ${formatRubFull(ctx.parsed)}` }
+          }
+        }
+      }
+    });
+  </script>
+</body>
+</html>

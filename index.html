@@ -1,0 +1,319 @@
+<!doctype html>
+<html lang="ru">
+<head>
+  <meta charset="utf-8">
+  <title>ПартсАвеню — Дашборд заказов</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Ctext y='80' font-size='80'%3E📊%3C/text%3E%3C/svg%3E">
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
+  <style>
+    :root {
+      /* Брендовая палитра ПартсАвеню (основа: #03002e) */
+      --bg: #03002e;
+      --bg-card: #0c0a3f;
+      --bg-card-hover: #161353;
+      --border: #2a2480;
+      --border-soft: #1a1660;
+      --text: #f0eeff;
+      --text-dim: #a8a5d4;
+      --text-faint: #6864a0;
+      --accent: #6366f1;       /* индиго — действия */
+      --accent-hover: #818cf8;
+      --green: #34d399;        /* сток (наш) */
+      --orange: #fbbf24;       /* кросс (через поставщиков) */
+      --red: #f87171;
+    }
+    *,*::before,*::after { box-sizing: border-box; }
+    html, body { background: var(--bg); }
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", sans-serif;
+      color: var(--text); margin: 0; padding: 0;
+      font-feature-settings: "tnum" 1;
+      min-height: 100vh;
+    }
+
+    /* ====== LOCK SCREEN ====== */
+    .lock {
+      min-height: 100vh; display: flex; align-items: center; justify-content: center;
+      padding: 20px;
+    }
+    .lock-card {
+      background: var(--bg-card); border-radius: 16px; padding: 40px;
+      max-width: 420px; width: 100%;
+      border: 1px solid var(--border-soft);
+      box-shadow: 0 25px 50px -12px rgba(0,0,0,.6);
+    }
+    .lock-card h1 { margin: 0 0 8px; font-size: 24px; font-weight: 700; }
+    .lock-card .sub { color: var(--text-dim); margin: 0 0 28px; font-size: 14px; }
+    .lock-card label { display: block; font-size: 13px; color: var(--text-dim); margin-bottom: 6px; }
+    .lock-card input {
+      width: 100%; padding: 12px 14px; font-size: 15px;
+      background: var(--bg); border: 1px solid var(--border);
+      color: var(--text); border-radius: 10px;
+    }
+    .lock-card input:focus {
+      outline: none; border-color: var(--accent);
+      box-shadow: 0 0 0 3px rgba(99,102,241,.25);
+    }
+    .lock-card button {
+      width: 100%; margin-top: 14px; padding: 12px;
+      background: var(--accent); color: white; border: none;
+      border-radius: 10px; font-size: 15px; font-weight: 600;
+      cursor: pointer;
+    }
+    .lock-card button:hover { background: var(--accent-hover); }
+    .lock-card button:disabled { opacity: 0.6; cursor: wait; }
+    .lock-card .err {
+      color: var(--red); font-size: 13px; margin-top: 10px;
+      min-height: 18px;
+    }
+
+    /* ====== HEADER ====== */
+    .header {
+      padding: 18px 24px; border-bottom: 1px solid var(--border-soft);
+      display: flex; align-items: center; gap: 18px; background: var(--bg-card);
+      flex-wrap: wrap;
+    }
+    .header .brand { font-size: 18px; font-weight: 700; white-space: nowrap; }
+    .header .brand .accent { color: var(--accent); }
+    .header .nav { flex: 1; display: flex; gap: 6px; flex-wrap: wrap; }
+    .header .nav button {
+      background: transparent; border: 1px solid var(--border);
+      color: var(--text-dim); padding: 7px 12px; border-radius: 8px;
+      cursor: pointer; font-size: 12.5px; white-space: nowrap;
+    }
+    .header .nav button:hover { background: var(--bg-card-hover); color: var(--text); }
+    .header .nav button.active {
+      background: var(--accent); color: white; border-color: var(--accent);
+    }
+    .header .right { display: flex; align-items: center; gap: 10px; }
+    .header .ts { color: var(--text-faint); font-size: 12px; }
+    .header .lock-btn {
+      background: transparent; border: 1px solid var(--border);
+      color: var(--text-dim); padding: 6px 10px; border-radius: 8px;
+      cursor: pointer; font-size: 12px;
+    }
+    .header .lock-btn:hover { color: var(--red); border-color: var(--red); }
+
+    /* ====== MAIN ====== */
+    main { padding: 24px; max-width: 1400px; margin: 0 auto; }
+    @media (max-width: 640px) {
+      main { padding: 16px; }
+      .header { padding: 14px 16px; gap: 12px; }
+      .header .brand { font-size: 16px; }
+    }
+
+    .toolbar {
+      display: flex; align-items: center; gap: 10px; margin-bottom: 24px;
+      flex-wrap: wrap;
+    }
+    .toolbar input[type="date"] {
+      background: var(--bg-card); border: 1px solid var(--border);
+      color: var(--text); padding: 7px 12px; border-radius: 8px;
+      font-size: 13px; color-scheme: dark;
+    }
+    .toolbar .chip {
+      background: var(--bg-card); border: 1px solid var(--border);
+      color: var(--text-dim); padding: 7px 13px; border-radius: 8px;
+      cursor: pointer; font-size: 13px;
+    }
+    .toolbar .chip:hover { color: var(--text); border-color: var(--accent); }
+    .toolbar .chip.active { background: var(--accent); color: white; border-color: var(--accent); }
+    .toolbar .sep { flex: 1; min-width: 12px; }
+    .toolbar .refresh {
+      background: transparent; border: 1px solid var(--border);
+      color: var(--text-dim); padding: 7px 13px; border-radius: 8px;
+      cursor: pointer; font-size: 13px;
+    }
+    .toolbar .refresh:hover { color: var(--text); border-color: var(--accent); }
+
+    /* KPI Tiles */
+    .kpi-grid {
+      display: grid; grid-template-columns: repeat(3, 1fr); gap: 16px;
+      margin-bottom: 24px;
+    }
+    @media (max-width: 720px) { .kpi-grid { grid-template-columns: 1fr; gap: 12px; } }
+    .kpi {
+      background: var(--bg-card); border: 1px solid var(--border-soft);
+      border-radius: 14px; padding: 22px; position: relative; overflow: hidden;
+    }
+    .kpi::before {
+      content: ""; position: absolute; top: 0; left: 0; right: 0; height: 3px;
+    }
+    .kpi.total::before { background: var(--accent); }
+    .kpi.stock::before { background: var(--green); }
+    .kpi.cross::before { background: var(--orange); }
+    .kpi .lbl { color: var(--text-dim); font-size: 13px; margin-bottom: 8px; }
+    .kpi .val {
+      font-size: 32px; font-weight: 700; line-height: 1.1; letter-spacing: -0.02em;
+    }
+    @media (max-width: 720px) { .kpi .val { font-size: 26px; } }
+    .kpi.total .val { color: var(--text); }
+    .kpi.stock .val { color: var(--green); }
+    .kpi.cross .val { color: var(--orange); }
+    .kpi .sub { color: var(--text-faint); font-size: 12px; margin-top: 8px; }
+
+    /* Section card */
+    .section {
+      background: var(--bg-card); border: 1px solid var(--border-soft);
+      border-radius: 14px; padding: 22px; margin-bottom: 16px;
+    }
+    @media (max-width: 640px) { .section { padding: 16px; } }
+    .section h2 {
+      margin: 0 0 16px; font-size: 16px; font-weight: 600; color: var(--text);
+    }
+
+    /* Table */
+    .table-wrap { overflow-x: auto; margin: -8px; padding: 8px; }
+    table { width: 100%; border-collapse: collapse; font-size: 13px; min-width: 600px; }
+    table th {
+      text-align: left; color: var(--text-dim); font-weight: 500;
+      padding: 10px 8px; border-bottom: 1px solid var(--border-soft);
+      font-size: 12px; text-transform: uppercase; letter-spacing: 0.04em;
+      white-space: nowrap;
+    }
+    table th.num, table td.num { text-align: right; }
+    table td { padding: 12px 8px; border-bottom: 1px solid var(--border-soft); }
+    table tr:last-child td { border-bottom: none; }
+    table tr:hover td { background: var(--bg-card-hover); }
+
+    .pill {
+      display: inline-block; padding: 2px 8px; border-radius: 6px;
+      font-size: 11px; font-weight: 500; margin-left: 6px;
+    }
+    .pill.green { background: rgba(52,211,153,.15); color: var(--green); }
+    .pill.orange { background: rgba(251,191,36,.15); color: var(--orange); }
+    .pill.gray { background: rgba(168,165,212,.15); color: var(--text-faint); }
+
+    /* Chart container */
+    .chart-wrap { position: relative; height: 280px; }
+    @media (max-width: 640px) { .chart-wrap { height: 240px; } }
+
+    /* Sessions */
+    .session-row {
+      display: flex; align-items: center; gap: 16px; padding: 12px 8px;
+      border-bottom: 1px solid var(--border-soft);
+    }
+    @media (max-width: 640px) {
+      .session-row { flex-wrap: wrap; gap: 10px; }
+      .session-row .sum { width: 100%; padding-left: 38px; }
+    }
+    .session-row:last-child { border-bottom: none; }
+    .session-row .check {
+      width: 22px; height: 22px; border-radius: 6px; border: 1px solid var(--border);
+      cursor: pointer; display: flex; align-items: center; justify-content: center;
+      flex-shrink: 0; transition: transform .1s;
+    }
+    .session-row .check:hover { transform: scale(1.1); }
+    .session-row.included .check {
+      background: var(--green); border-color: var(--green); color: var(--bg);
+      font-weight: 700;
+    }
+    .session-row.excluded .check { background: var(--bg); }
+    .session-row.excluded .info, .session-row.excluded .sum {
+      color: var(--text-faint); text-decoration: line-through;
+    }
+    .session-row .info { flex: 1; min-width: 0; }
+    .session-row .info .when { font-size: 14px; color: var(--text); }
+    .session-row .info .who { font-size: 12px; color: var(--text-faint); margin-top: 2px; }
+    .session-row .sum { font-size: 14px; font-weight: 600; white-space: nowrap; }
+
+    .empty {
+      text-align: center; color: var(--text-faint); padding: 40px 20px;
+      font-size: 14px;
+    }
+    .loader { text-align: center; padding: 20px; color: var(--text-dim); }
+
+    /* Two columns */
+    .two-cols {
+      display: grid; grid-template-columns: 1.4fr 1fr; gap: 16px; margin-bottom: 16px;
+    }
+    @media (max-width: 1024px) { .two-cols { grid-template-columns: 1fr; } }
+  </style>
+</head>
+<body>
+  <!-- LOCK SCREEN -->
+  <div class="lock" id="lockScreen">
+    <div class="lock-card">
+      <h1>🔐 Дашборд заказов</h1>
+      <p class="sub">ПартсАвеню — товарооборот в реальном времени</p>
+      <label for="pwd">Пароль</label>
+      <input type="password" id="pwd" autocomplete="off"
+             placeholder="введи пароль" autofocus>
+      <button id="unlockBtn">Войти</button>
+      <div class="err" id="lockErr"></div>
+    </div>
+  </div>
+
+  <!-- DASHBOARD -->
+  <div id="dashboard" style="display:none">
+    <header class="header">
+      <div class="brand">📊 <span class="accent">ПартсАвеню</span> · дашборд</div>
+      <div class="nav" id="navMonths"></div>
+      <div class="right">
+        <span class="ts" id="lastUpdate">—</span>
+        <button class="lock-btn" id="lockBtn">🔒 Заблокировать</button>
+      </div>
+    </header>
+
+    <main>
+      <div class="toolbar">
+        <button class="chip" data-period="today">Сегодня</button>
+        <button class="chip" data-period="yesterday">Вчера</button>
+        <button class="chip" data-period="week">Неделя</button>
+        <button class="chip active" data-period="month">Месяц</button>
+        <input type="date" id="datePicker" title="Конкретный день">
+        <div class="sep"></div>
+        <button class="refresh" id="refreshBtn">🔄 Обновить</button>
+      </div>
+
+      <div class="kpi-grid">
+        <div class="kpi total">
+          <div class="lbl">Общий товарооборот</div>
+          <div class="val" id="kpiTotal">—</div>
+          <div class="sub" id="kpiTotalSub">—</div>
+        </div>
+        <div class="kpi stock">
+          <div class="lbl">Сток (наш собственный)</div>
+          <div class="val" id="kpiStock">—</div>
+          <div class="sub" id="kpiStockSub">—</div>
+        </div>
+        <div class="kpi cross">
+          <div class="lbl">Кросс (через поставщиков)</div>
+          <div class="val" id="kpiCross">—</div>
+          <div class="sub" id="kpiCrossSub">—</div>
+        </div>
+      </div>
+
+      <div class="two-cols">
+        <div class="section">
+          <h2>Динамика по дням</h2>
+          <div class="chart-wrap">
+            <canvas id="trendChart"></canvas>
+          </div>
+        </div>
+        <div class="section">
+          <h2>Распределение</h2>
+          <div class="chart-wrap">
+            <canvas id="splitChart"></canvas>
+          </div>
+        </div>
+      </div>
+
+      <div class="section">
+        <h2>По клиентам</h2>
+        <div class="table-wrap" id="clientsTable"></div>
+      </div>
+
+      <div class="section">
+        <h2>Сессии за период</h2>
+        <div id="sessionsList"></div>
+      </div>
+    </main>
+  </div>
+
+  <script src="config.js"></script>
+  <script src="crypto.js"></script>
+  <script src="app.js"></script>
+</body>
+</html>

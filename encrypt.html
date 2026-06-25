@@ -1,0 +1,179 @@
+<!doctype html>
+<html lang="ru">
+<head>
+  <meta charset="utf-8">
+  <title>PartsAvenue Dashboard — шифровальщик токена</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <style>
+    *,*::before,*::after { box-sizing: border-box; }
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+      background: #0f172a;
+      color: #e2e8f0;
+      margin: 0;
+      min-height: 100vh;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      padding: 20px;
+    }
+    .card {
+      background: #1e293b;
+      border-radius: 12px;
+      padding: 32px;
+      max-width: 640px;
+      width: 100%;
+      box-shadow: 0 25px 50px -12px rgba(0,0,0,.5);
+      border: 1px solid #334155;
+    }
+    h1 { font-size: 22px; margin: 0 0 6px; font-weight: 600; }
+    .sub { color: #94a3b8; font-size: 14px; margin: 0 0 24px; }
+    label {
+      display: block; font-size: 13px; font-weight: 500;
+      margin-bottom: 6px; color: #cbd5e1;
+    }
+    input, textarea {
+      width: 100%; padding: 10px 12px;
+      background: #0f172a; border: 1px solid #475569;
+      color: #f1f5f9; border-radius: 8px;
+      font-size: 14px; font-family: ui-monospace, "SF Mono", monospace;
+    }
+    input:focus, textarea:focus {
+      outline: none; border-color: #3b82f6;
+      box-shadow: 0 0 0 3px rgba(59,130,246,.2);
+    }
+    textarea { resize: vertical; min-height: 100px; }
+    .field { margin-bottom: 16px; }
+    .btn {
+      background: #3b82f6; color: white; border: none;
+      padding: 12px 20px; border-radius: 8px; font-size: 14px;
+      font-weight: 600; cursor: pointer; width: 100%;
+      transition: background .15s;
+    }
+    .btn:hover { background: #2563eb; }
+    .btn.copy { background: #10b981; margin-top: 8px; }
+    .btn.copy:hover { background: #059669; }
+    .out {
+      background: #0f172a; border: 1px solid #475569;
+      border-radius: 8px; padding: 12px; margin-top: 16px;
+      font-family: ui-monospace, monospace; font-size: 12px;
+      color: #86efac; word-break: break-all; max-height: 200px;
+      overflow-y: auto;
+    }
+    .err {
+      background: #7f1d1d; border-color: #b91c1c; color: #fecaca;
+    }
+    .ok {
+      color: #86efac; font-size: 13px; margin-top: 8px;
+    }
+    .warn {
+      background: #422006; border: 1px solid #92400e; color: #fbbf24;
+      padding: 10px 14px; border-radius: 8px; font-size: 13px;
+      margin: 16px 0;
+    }
+    .footer { color: #64748b; font-size: 12px; margin-top: 20px; line-height: 1.5; }
+  </style>
+</head>
+<body>
+  <div class="card">
+    <h1>🔐 Шифровальщик токена</h1>
+    <p class="sub">PartsAvenue Order Dashboard — генерация защищённого blob для config.js</p>
+
+    <div class="warn">
+      ⚠️ Эта страница работает только в твоём браузере. Токен никуда не отправляется.
+      Никаких сетевых запросов отсюда не идёт.
+    </div>
+
+    <div class="field">
+      <label for="token">GitHub Personal Access Token</label>
+      <input type="password" id="token"
+             placeholder="github_pat_11A..."
+             autocomplete="off">
+    </div>
+
+    <div class="field">
+      <label for="password">Пароль для дашборда (его будут вводить пользователи)</label>
+      <input type="password" id="password"
+             placeholder="придумай свой пароль"
+             autocomplete="off">
+    </div>
+
+    <button class="btn" id="encryptBtn">Зашифровать →</button>
+
+    <div id="output"></div>
+
+    <p class="footer">
+      <b>Что делать с результатом:</b> скопируй полученную строку в файл
+      <code>config.js</code> вашего дашборда, в константу
+      <code>ENCRYPTED_TOKEN</code>. Один и тот же пароль будут вводить
+      пользователи при заходе на дашборд — он расшифровает токен и
+      разрешит доступ.
+      <br><br>
+      <b>Алгоритм:</b> AES-256-GCM, ключ выводится из пароля через PBKDF2-SHA-256
+      (100 000 итераций). Случайные salt и IV вшиты в blob.
+    </p>
+  </div>
+
+  <script>
+    async function encryptToken(plaintext, password) {
+      const enc = new TextEncoder();
+      const salt = crypto.getRandomValues(new Uint8Array(16));
+      const iv = crypto.getRandomValues(new Uint8Array(12));
+
+      const keyMaterial = await crypto.subtle.importKey(
+        "raw", enc.encode(password),
+        { name: "PBKDF2" }, false, ["deriveKey"]
+      );
+      const key = await crypto.subtle.deriveKey(
+        { name: "PBKDF2", salt, iterations: 100000, hash: "SHA-256" },
+        keyMaterial,
+        { name: "AES-GCM", length: 256 },
+        false, ["encrypt"]
+      );
+      const ciphertext = await crypto.subtle.encrypt(
+        { name: "AES-GCM", iv }, key, enc.encode(plaintext)
+      );
+
+      // Конкатенация: salt(16) + iv(12) + ciphertext → base64
+      const combined = new Uint8Array(salt.length + iv.length + ciphertext.byteLength);
+      combined.set(salt, 0);
+      combined.set(iv, salt.length);
+      combined.set(new Uint8Array(ciphertext), salt.length + iv.length);
+
+      return btoa(String.fromCharCode.apply(null, combined));
+    }
+
+    document.getElementById("encryptBtn").addEventListener("click", async () => {
+      const token = document.getElementById("token").value.trim();
+      const password = document.getElementById("password").value;
+      const out = document.getElementById("output");
+
+      if (!token || !password) {
+        out.innerHTML = '<div class="out err">Заполни оба поля.</div>';
+        return;
+      }
+      if (password.length < 6) {
+        out.innerHTML = '<div class="out err">Пароль слишком короткий (минимум 6 символов).</div>';
+        return;
+      }
+
+      try {
+        const encrypted = await encryptToken(token, password);
+        out.innerHTML = `
+          <div class="out" id="result">${encrypted}</div>
+          <button class="btn copy" id="copyBtn">📋 Скопировать в буфер</button>
+        `;
+        document.getElementById("copyBtn").addEventListener("click", async () => {
+          await navigator.clipboard.writeText(encrypted);
+          document.getElementById("copyBtn").textContent = "✓ Скопировано";
+          setTimeout(() => {
+            document.getElementById("copyBtn").textContent = "📋 Скопировать в буфер";
+          }, 1500);
+        });
+      } catch (e) {
+        out.innerHTML = `<div class="out err">Ошибка шифрования: ${e.message}</div>`;
+      }
+    });
+  </script>
+</body>
+</html>
