@@ -94,8 +94,17 @@ async function pingGitHub(token) {
   } catch (e) { return false; }
 }
 
+function base64ToUtf8(base64) {
+  // Современный путь: base64 → bytes → UTF-8 строка через TextDecoder.
+  // Избегаем deprecated escape/decodeURIComponent хака — он валится на
+  // кривых байт-последовательностях.
+  const binary = atob((base64 || "").replace(/\s+/g, ""));
+  const bytes = new Uint8Array(binary.length);
+  for (let i = 0; i < binary.length; i++) bytes[i] = binary.charCodeAt(i);
+  return new TextDecoder("utf-8").decode(bytes);
+}
+
 async function fetchMonth(monthKey) {
-  // Один JSON-файл с сессиями за месяц. Если файла нет — 404, возвращаем пустой.
   const url = `https://api.github.com/repos/${CONFIG.REPO_OWNER}/${CONFIG.REPO_NAME}/contents/data/dashboard/${monthKey}.json`;
   try {
     const r = await fetch(url, {
@@ -104,19 +113,38 @@ async function fetchMonth(monthKey) {
     if (r.status === 404) {
       return { month: monthKey, sessions: [], _sha: null };
     }
-    if (!r.ok) throw new Error(`HTTP ${r.status}`);
+    if (!r.ok) throw new Error(`HTTP ${r.status} ${r.statusText}`);
     const meta = await r.json();
-    // content приходит в base64 (с переносами)
-    const decoded = atob((meta.content || "").replace(/\n/g, ""));
-    const text = decodeURIComponent(escape(decoded));
+    const text = base64ToUtf8(meta.content);
     const data = JSON.parse(text);
     state.monthsSha[monthKey] = meta.sha;
     data._sha = meta.sha;
     return data;
   } catch (e) {
     console.error("fetchMonth failed:", monthKey, e);
+    showError(`Не удалось загрузить ${monthKey}: ${e.message}`);
     return null;
   }
+}
+
+function showError(msg) {
+  // Видимый баннер ошибок наверху main-области. Самозакрывается через 8 сек.
+  let bar = document.getElementById("errorBar");
+  if (!bar) {
+    bar = document.createElement("div");
+    bar.id = "errorBar";
+    bar.style.cssText = `
+      position: fixed; top: 0; left: 0; right: 0; z-index: 9999;
+      background: #b91c1c; color: white; padding: 12px 20px;
+      font-size: 13px; box-shadow: 0 4px 12px rgba(0,0,0,.5);
+      cursor: pointer;
+    `;
+    bar.title = "Кликни чтобы закрыть";
+    bar.onclick = () => bar.remove();
+    document.body.prepend(bar);
+  }
+  bar.textContent = "⚠️ " + msg + "   (клик чтобы закрыть)";
+  setTimeout(() => { if (bar.parentNode) bar.remove(); }, 8000);
 }
 
 async function toggleSessionIncluded(sessionId, included) {
@@ -136,8 +164,13 @@ async function toggleSessionIncluded(sessionId, included) {
     sessions: data.sessions
   }, null, 2);
 
-  // base64-кодируем UTF-8
-  const encoded = btoa(unescape(encodeURIComponent(body)));
+  // base64-кодируем UTF-8 (через TextEncoder, без deprecated unescape)
+  const utf8bytes = new TextEncoder().encode(body);
+  let binary = "";
+  for (let i = 0; i < utf8bytes.length; i++) {
+    binary += String.fromCharCode(utf8bytes[i]);
+  }
+  const encoded = btoa(binary);
 
   const url = `https://api.github.com/repos/${CONFIG.REPO_OWNER}/${CONFIG.REPO_NAME}/contents/data/dashboard/${monthKey}.json`;
   const r = await fetch(url, {
@@ -165,11 +198,21 @@ async function toggleSessionIncluded(sessionId, included) {
 // ============================================================
 // АГРЕГАЦИЯ / ФИЛЬТРАЦИЯ
 // ============================================================
+// ВАЖНО: используем ЛОКАЛЬНЫЕ методы (getFullYear/getMonth/getDate),
+// а НЕ toISOString — иначе для пользователей в часовых поясах +N
+// первое число месяца уезжает в предыдущий месяц при UTC-конвертации
+// (например, 1 июня 00:00 МСК = 31 мая 21:00 UTC). Из-за этого дашборд
+// запрашивал из GitHub несуществующий файл предыдущего месяца.
 function ymd(date) {
-  return date.toISOString().slice(0, 10);
+  const y = date.getFullYear();
+  const m = String(date.getMonth() + 1).padStart(2, "0");
+  const d = String(date.getDate()).padStart(2, "0");
+  return `${y}-${m}-${d}`;
 }
 function ym(date) {
-  return date.toISOString().slice(0, 7);
+  const y = date.getFullYear();
+  const m = String(date.getMonth() + 1).padStart(2, "0");
+  return `${y}-${m}`;
 }
 function startOfDay(d) {
   const x = new Date(d);
