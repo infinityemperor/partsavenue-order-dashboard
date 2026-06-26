@@ -240,6 +240,13 @@
       <label for="pwd">Пароль</label>
       <input type="password" id="pwd" autocomplete="off"
              placeholder="введи пароль" autofocus>
+      <label style="display:flex;align-items:center;gap:8px;margin-top:12px;
+                    font-size:13px;cursor:pointer;user-select:none;
+                    color:var(--text-dim);">
+        <input type="checkbox" id="rememberMe" checked
+               style="width:16px;height:16px;cursor:pointer;accent-color:var(--accent);">
+        Запомнить вход на 30 дней
+      </label>
       <button id="unlockBtn">Войти</button>
       <div class="err" id="lockErr"></div>
     </div>

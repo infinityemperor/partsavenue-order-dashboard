@@ -14,6 +14,40 @@ const state = {
 };
 
 // ============================================================
+// «Запомнить меня» — храним токен в localStorage с TTL
+// ============================================================
+const REMEMBER_DAYS = 30;
+const STORAGE_KEY = "ps_dashboard_session_v1";
+
+function saveStoredSession(token) {
+  try {
+    localStorage.setItem(STORAGE_KEY, JSON.stringify({
+      token,
+      expiresAt: Date.now() + REMEMBER_DAYS * 86400 * 1000,
+      repoOwner: CONFIG.REPO_OWNER,
+      repoName: CONFIG.REPO_NAME,
+    }));
+  } catch (e) { /* localStorage может быть отключён в приватном режиме */ }
+}
+
+function loadStoredSession() {
+  try {
+    const raw = localStorage.getItem(STORAGE_KEY);
+    if (!raw) return null;
+    const data = JSON.parse(raw);
+    // Истёк?
+    if (!data.expiresAt || Date.now() > data.expiresAt) return null;
+    // Сменили репо в config.js — старый токен не подойдёт
+    if (data.repoOwner !== CONFIG.REPO_OWNER || data.repoName !== CONFIG.REPO_NAME) return null;
+    return data.token;
+  } catch (e) { return null; }
+}
+
+function clearStoredSession() {
+  try { localStorage.removeItem(STORAGE_KEY); } catch (e) {}
+}
+
+// ============================================================
 // LOCK SCREEN
 // ============================================================
 const lockScreen = document.getElementById("lockScreen");
@@ -49,6 +83,13 @@ async function tryUnlock() {
     pwdInput.value = "";
     lockErr.textContent = "";
     unlockBtn.disabled = false;
+    // Если галка «Запомнить меня» стоит — сохраняем токен в localStorage
+    const remember = document.getElementById("rememberMe");
+    if (remember && remember.checked) {
+      saveStoredSession(token);
+    } else {
+      clearStoredSession();
+    }
     showDashboard();
   } catch (e) {
     lockErr.textContent = "Сбой: " + e.message;
@@ -68,6 +109,9 @@ function doLock() {
   state.monthsCache = {};
   state.monthsSha = {};
   if (state.lockTimer) { clearTimeout(state.lockTimer); state.lockTimer = null; }
+  // Явный клик «Заблокировать» = пользователь хочет выйти. Стираем токен
+  // из localStorage чтобы в следующий раз снова спросило пароль.
+  clearStoredSession();
   dashboard.style.display = "none";
   lockScreen.style.display = "flex";
   pwdInput.focus();
@@ -702,4 +746,24 @@ if (!CONFIG.REPO_OWNER || CONFIG.REPO_OWNER.includes("PUT_YOUR") ||
       </ul>
     </div>
   `;
+} else {
+  // Попытка авто-логина: если в localStorage есть валидный токен —
+  // проверяем его в GitHub и сразу показываем дашборд, минуя ввод пароля.
+  (async () => {
+    const savedToken = loadStoredSession();
+    if (!savedToken) return;  // нет токена / истёк → показать lock-screen
+    // Пинг GitHub чтобы убедиться что токен ещё работает (не отозван, не истёк)
+    try {
+      const ok = await pingGitHub(savedToken);
+      if (!ok) {
+        clearStoredSession();
+        return;
+      }
+      state.token = savedToken;
+      showDashboard();
+    } catch (e) {
+      console.warn("Auto-login failed:", e);
+      clearStoredSession();
+    }
+  })();
 }
